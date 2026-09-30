@@ -6,16 +6,42 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
+using Emby.Plugin.Danmu.Scraper.Entity;
 
 namespace Emby.Plugin.Danmu.Core.Extensions
 {
     public static class BaseItemExtension
     {
-        public static Task UpdateToRepositoryAsync(this BaseItem item, ItemUpdateType itemUpdateType,
-            CancellationToken cancellationToken)
+        public static ScraperEpisode GetDanmuEpisode(this Episode episode, ScraperMedia media)
         {
-            item.UpdateToRepository(ItemUpdateType.MetadataEdit);
-            return Task.CompletedTask;
+            var number = episode.IndexNumber ?? 0;
+            if ((episode.ParentIndexNumber ?? 0) <= 0 || number < 1 ||
+                media?.Episodes == null || number > media.Episodes.Count) return null;
+            return media.Episodes[number - 1];
+        }
+
+        public static void SetDanmuProviderId(this BaseItem item, string providerId, string value)
+        {
+            var target = item;
+            if (item is Season && item.Id == Guid.Empty) target = item.GetParent();
+            if (target == null) throw new InvalidOperationException("Cannot cache an unpersisted season without its series.");
+            DanmuProviderStore.Set(target.Id, providerId, value);
+        }
+
+        public static BaseItem CreateDanmuSearchItem(this BaseItem item, string name, int? year)
+        {
+            BaseItem result;
+            if (item is Episode episode)
+                result = new Episode { IndexNumber = episode.IndexNumber, ParentIndexNumber = episode.ParentIndexNumber };
+            else if (item is Season season)
+                result = new Season { IndexNumber = season.IndexNumber };
+            else
+                throw new ArgumentException("Only episode and season search proxies are supported.");
+            result.Id = item.Id;
+            result.Name = name;
+            result.Path = item.Path;
+            result.ProductionYear = year;
+            return result;
         }
 
         public static string GetDanmuXmlPath(this BaseItem item, string providerId)
@@ -28,7 +54,8 @@ namespace Emby.Plugin.Danmu.Core.Extensions
          */
         public static string GetDanmuProviderId(this BaseItem item, string providerId)
         {
-            string providerVal = item.GetProviderId(providerId);
+            if (item == null) return null;
+            string providerVal = DanmuProviderStore.Get(item.Id, providerId) ?? item.GetProviderId(providerId);
             if (!string.IsNullOrEmpty(providerVal))
             {
                 return providerVal;
@@ -36,7 +63,8 @@ namespace Emby.Plugin.Danmu.Core.Extensions
 
             if (item is Season)
             {   
-                return item.GetParent().GetProviderId(providerId);    
+                var parent = item.GetParent();
+                return parent == null ? null : DanmuProviderStore.Get(parent.Id, providerId) ?? parent.GetProviderId(providerId);
             }
             return providerVal;
         }
@@ -68,7 +96,7 @@ namespace Emby.Plugin.Danmu.Core.Extensions
 
             foreach (var scraper in scrapers)
             {
-                if (item.HasProviderId(scraper.ProviderId))
+                if (!string.IsNullOrEmpty(item.GetDanmuProviderId(scraper.ProviderId)))
                 {
                     return true;
                 }

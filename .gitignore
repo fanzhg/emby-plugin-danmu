@@ -1,3 +1,5 @@
 Emby.Plugin.Danmu/bin/
 Emby.Plugin.Danmu/obj/
 .idea/
+tests/bin/
+tests/obj/

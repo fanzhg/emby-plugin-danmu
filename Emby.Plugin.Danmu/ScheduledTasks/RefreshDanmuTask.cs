@@ -66,7 +66,6 @@ namespace Emby.Plugin.Danmu.ScheduledTasks
             var scrapers = this._scraperManager.All();
             var items = _libraryManager.GetItemList(new InternalItemsQuery
             {
-                HasAnyProviderId = this.GetScraperFilterArray(scrapers),
                 IncludeItemTypes = new[] { "Movie", "Episode"}
             }).ToList();
 

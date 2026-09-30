@@ -50,6 +50,7 @@ namespace Emby.Plugin.Danmu
             ) 
             : base(applicationPaths, xmlSerializer)
         {
+            DanmuProviderStore.Initialize(Path.Combine(applicationPaths.DataPath, "danmu-provider-cache"));
             SingletonManager.ScraperManager = scraperManager;
             SingletonManager.JsonSerializer = jsonSerializer;
             SingletonManager.HttpClient = httpClient;

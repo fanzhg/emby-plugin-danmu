@@ -414,10 +414,9 @@ namespace Emby.Plugin.Danmu
 
                                 // 更新epid元数据
                                 // 对于电影，ProviderId 存储的是搜索时用的ID (mediaId, 如B站的season_id, 爱奇艺的LinkId, 腾讯的cid, 优酷的show_id)
-                                item.SetProviderId(scraper.ProviderId, mediaId); 
+                                item.SetDanmuProviderId(scraper.ProviderId, mediaId);
                                 // 可以考虑额外存储一个特定于播放的 ep_id，如果 Emby 支持多个 ProviderId 或自定义字段
                                 // 例如: item.SetProviderId($"{scraper.ProviderId}_Playable", idToUseForDanmakuProcessing);
-                                item.UpdateToRepository(ItemUpdateType.MetadataEdit);
                                 
                                 // 下载弹幕
                                 if (!string.IsNullOrEmpty(idToUseForDanmakuProcessing)) {
@@ -461,7 +460,7 @@ namespace Emby.Plugin.Danmu
                     {
                         try
                         {
-                            var providerVal = item.GetProviderId(scraper.ProviderId);
+                            var providerVal = item.GetDanmuProviderId(scraper.ProviderId);
                             if (!string.IsNullOrEmpty(providerVal))
                             {
                                 // providerVal 是存储的 season_id/media_id (例如 '41175')
@@ -689,18 +688,9 @@ namespace Emby.Plugin.Danmu
                         {
                             // 读取最新数据，要不然取不到年份信息（不能对GetItemById的对象直接修改属性，要不然会直接改到数据！！！！）
                             var currentItem = _libraryManager.GetItemById(season.Id);
-                            if (currentItem != null)
-                            {
-                                season.ProductionYear = currentItem.ProductionYear;
-                            }
-
-                            // 季的名称不准确，改使用series的名称
-                            if (series != null)
-                            {
-                                season.Name = series.Name;
-                            }
-
-                            var mediaId = await scraper.SearchMediaId(season);
+                            var searchItem = season.CreateDanmuSearchItem(series?.Name ?? season.Name,
+                                currentItem?.ProductionYear ?? season.ProductionYear ?? series?.ProductionYear);
+                            var mediaId = await scraper.SearchMediaId(searchItem);
                             if (string.IsNullOrEmpty(mediaId))
                             {
                                 _logger.LogInformation("[{0}]匹配失败：{1} ({2})", scraper.Name, season.Name,
@@ -716,7 +706,7 @@ namespace Emby.Plugin.Danmu
                             }
 
                             // 更新seasonId元数据
-                            season.SetProviderId(scraper.ProviderId, mediaId);
+                            season.SetDanmuProviderId(scraper.ProviderId, mediaId);
                             queueUpdateMeta.Add(season);
 
                             _logger.LogInformation("[{0}]匹配成功：name={1} season_number={2} ProviderId: {3}", scraper.Name,
@@ -806,7 +796,7 @@ namespace Emby.Plugin.Danmu
                             
                             int minEpisodes = Math.Min(episodes.Count, dabmuEpisodesCount);
                             _logger.LogInformation("[{0}]匹配完成，媒体数={1}. 弹幕数={2}, 最终需要匹配数={3}, 弹幕工具={4}", season.Name, episodes.Count(), dabmuEpisodesCount, minEpisodes, scraper.Name);
-                            for (var idx = 0; idx < minEpisodes; idx++)
+                            for (var idx = 0; idx < episodes.Count; idx++)
                             {
                                 var episode = episodes[idx];
                                 var fileName = Path.GetFileName(episode.Path);
@@ -826,16 +816,18 @@ namespace Emby.Plugin.Danmu
 
                                 if (ignoreEpisodesMatch || dabmuEpisodesCount == episodes.Count)
                                 {
-                                    var epId = media.Episodes[idx].Id;
-                                    var commentId = media.Episodes[idx].CommentId;
+                                    var matchedEpisode = (episode as Episode)?.GetDanmuEpisode(media);
+                                    if (matchedEpisode == null) continue;
+                                    var epId = matchedEpisode.Id;
+                                    var commentId = matchedEpisode.CommentId;
                                     _logger.LogInformation("[{0}]成功匹配. {1}.{2} -> epId: {3} cid: {4}", scraper.Name,
                                         indexNumber, episode.Name, epId, commentId);
 
                                     // 更新eposide元数据
-                                    var episodeProviderVal = episode.GetProviderId(scraper.ProviderId);
+                                    var episodeProviderVal = episode.GetDanmuProviderId(scraper.ProviderId);
                                     if (!string.IsNullOrEmpty(epId) && episodeProviderVal != epId)
                                     {
-                                        episode.SetProviderId(scraper.ProviderId, epId);
+                                        episode.SetDanmuProviderId(scraper.ProviderId, epId);
                                         queueUpdateMeta.Add(episode);
                                     }
 
@@ -923,7 +915,7 @@ namespace Emby.Plugin.Danmu
                     {
                         try
                         {
-                            var providerVal = item.GetProviderId(scraper.ProviderId);
+                            var providerVal = item.GetDanmuProviderId(scraper.ProviderId);
                             if (string.IsNullOrEmpty(providerVal))
                             {
                                 providerVal = await GetEpisodeDanmuIdBySeason(item.Season, item, scraper).ConfigureAwait(false);
@@ -1048,8 +1040,10 @@ namespace Emby.Plugin.Danmu
                 return;
             }
 
-            var epId = media.Episodes[indexNumber - 1].Id;
-            var commentId = media.Episodes[indexNumber - 1].CommentId;
+            var matchedEpisode = episode.GetDanmuEpisode(media);
+            if (matchedEpisode == null) return;
+            var epId = matchedEpisode.Id;
+            var commentId = matchedEpisode.CommentId;
 
             // 下载弹幕xml文件
             await this.DownloadDanmu(scraper, episode, commentId, true).ConfigureAwait(false);
@@ -1062,42 +1056,7 @@ namespace Emby.Plugin.Danmu
         // 调用UpdateToRepositoryAsync后，但未完成时，会导致GetEpisodes返回缺少正在处理的集数，所以采用统一最后处理
         private Task ProcessQueuedUpdateMeta(List<BaseItem> queue)
         {
-            if (queue == null || queue.Count <= 0)
-            {
-                return Task.CompletedTask;
-            }
-
-            foreach (var queueItem in queue)
-            {
-                // 获取最新的item数据
-                var queueItemId = queueItem.Id;
-                if (Guid.Empty.Equals(queueItemId) && queueItem is Season)
-                {
-                    queueItemId = queueItem.GetParent().Id;
-                    _logger.LogInformation("当前是Season={0}, 并且不存在相应的id，使用Series信息={1}", queueItem.Name, queueItemId);
-                }
-                
-                var item = _libraryManager.GetItemById(queueItemId);
-                if (item != null)
-                {
-                    // 合并新添加的provider id
-                    foreach (var pair in queueItem.ProviderIds)
-                    {
-                        if (string.IsNullOrEmpty(pair.Value))
-                        {
-                            continue;
-                        }
-
-                        item.ProviderIds[pair.Key] = pair.Value;
-                    }
-
-                    item.UpdateToRepository(ItemUpdateType.MetadataEdit);
-                    // Console.WriteLine(JsonSerializer.Serialize(item));
-                    // await item.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, CancellationToken.None).ConfigureAwait(false);
-                }
-            }
-
-            _logger.LogInformation("更新epid到元数据完成。item数：{0}", queue.Count);
+            // IDs were saved in the plugin cache. Never persist partial library objects.
             return Task.CompletedTask;
         }
 
@@ -1217,26 +1176,10 @@ namespace Emby.Plugin.Danmu
             }
         }
 
-        private async Task ForceSaveProviderId(BaseItem item, string providerId, string providerVal)
+        private Task ForceSaveProviderId(BaseItem item, string providerId, string providerVal)
         {
-            _logger.Info("ForceSaveProviderId item={0}, providerId={1}, providerVal={2}", item?.GetParent(), providerId, providerVal);
-            var updateItem = item;
-            // Season 不存在需要更新到 Series上
-            if (Guid.Empty.Equals(updateItem.Id) && updateItem is Season)
-            {
-                updateItem = item.GetParent();
-            }
-
-            // 先清空旧弹幕的所有元数据
-            foreach (var s in _scraperManager.All())
-            {
-                updateItem.ProviderIds.Remove(s.ProviderId);
-            }
-
-            // 保存指定弹幕元数据
-            updateItem.ProviderIds[providerId] = providerVal;
-            await updateItem.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, CancellationToken.None)
-                .ConfigureAwait(false);
+            item.SetDanmuProviderId(providerId, providerVal);
+            return Task.CompletedTask;
         }
 
 
@@ -1316,7 +1259,9 @@ namespace Emby.Plugin.Danmu
                 return null;
             }
             
-            var epId = media.Episodes[episodeIndexNumber - 1].Id;
+            var matchedEpisode = episode.GetDanmuEpisode(media);
+            if (matchedEpisode == null) return null;
+            var epId = matchedEpisode.Id;
             // 更新剧集元数据
             await ForceSaveProviderId(episode, scraper.ProviderId, epId);
             return epId;

@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Threading;
 using System.Threading.Tasks;
 using Emby.Plugin.Danmu.Scraper;
+using Emby.Plugin.Danmu.Core.Extensions;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Tasks;
@@ -27,7 +28,7 @@ namespace Emby.Plugin.Danmu.ScheduledTasks
         {
             foreach (var scraper in scrapers)
             {
-                if (item.HasProviderId(scraper.ProviderId))
+                if (!string.IsNullOrEmpty(item.GetDanmuProviderId(scraper.ProviderId)))
                 {
                     return true;
                 }

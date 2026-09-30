@@ -128,7 +128,7 @@ namespace Emby.Plugin.Danmu
             // 剧集使用series名称进行搜索
             if (item is Episode)
             {
-                item.Name = request.SeriesName;
+                item = item.CreateDanmuSearchItem(request.SeriesName, item.ProductionYear);
             }
 
             foreach (var scraper in _scraperManager.All())
@@ -180,18 +180,6 @@ namespace Emby.Plugin.Danmu
             }
 
             return list;
-        }
-
-        private void UpdateDanmuMetadata(BaseItem item, string providerId, string providerVal)
-        {
-            // 先清空旧弹幕的所有元数据
-            foreach (var s in _scraperManager.All())
-            {
-                item.ProviderIds.Remove(s.ProviderId);
-            }
-
-            // 保存指定弹幕元数据
-            item.ProviderIds[providerId] = providerVal;
         }
 
         /// <summary>
