@@ -5,7 +5,7 @@ on:
     tags: ["*"]
 
 env:
-  dotnet-version: 6.0.x
+  dotnet-version: 8.0.x
   python-version: 3.8
   project: Emby.Plugin.Danmu/Emby.Plugin.Danmu.csproj
   artifact: danmu
@@ -38,15 +38,13 @@ jobs:
         id: vars
         run: |
           VERSION=$(echo "${GITHUB_REF#refs/*/}" | sed s/^v//)
-          VERSION="$VERSION.0"
+          if [ "$(echo "$VERSION" | tr -cd '.' | wc -c)" -eq 2 ]; then VERSION="$VERSION.0"; fi
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
           echo "APP_NAME=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
       - name: Build
+        shell: pwsh
         run: |
-          dotnet restore ${{ env.project }} --no-cache
-          dotnet publish --nologo --no-restore --configuration=Release --framework=netstandard2.0 -p:Version=${{steps.vars.outputs.VERSION}} ${{ env.project }}
-          mkdir -p artifacts
-          zip -j ./artifacts/${{ env.artifact }}_${{steps.vars.outputs.VERSION}}.zip ./Emby.Plugin.Danmu/bin/Release/netstandard2.0/Emby.Plugin.Danmu.dll
+          ./scripts/package.ps1 -Version '${{steps.vars.outputs.VERSION}}'
       - name: Publish release
         uses: svenstaro/upload-release-action@v2
         with:

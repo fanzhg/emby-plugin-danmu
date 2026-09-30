@@ -4,7 +4,7 @@
         <Description>弹幕插件</Description>
         <PackageTags>emby;plugin;pms;media;server;</PackageTags>
         <LangVersion>8.0</LangVersion>
-        <Version>1.1.3.1</Version>
+        <Version>1.1.3.2</Version>
     </PropertyGroup>
     <ItemGroup>
         <None Remove="Configuration\logo.png" />

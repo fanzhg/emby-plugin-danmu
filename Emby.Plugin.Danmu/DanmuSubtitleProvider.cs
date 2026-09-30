@@ -95,7 +95,7 @@ namespace Emby.Plugin.Danmu
             CancellationToken cancellationToken)
         {
             // _logger.Info("开始查询弹幕 request={0}", request.ToJson());
-            if(request.Language == "zh-CN" || request.Language == "zh-TW" || request.Language == "zh-HK"){
+            if(request.Language == "zh" || request.Language == "zho" || request.Language == "zh-CN" || request.Language == "zh-TW" || request.Language == "zh-HK"){
                 request.Language = "chi";
             }
             if (request.Language != "chi")

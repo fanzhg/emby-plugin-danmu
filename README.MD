@@ -1,12 +1,13 @@
-# 1.1.3.1：弹幕下载元数据保护修复
+# 1.1.3.2：弹幕下载元数据保护修复
 
 下载弹幕时可能出现季名称变成节目全名、剧集元数据异常，以及缺集后弹幕匹配错位。本次修复使用独立搜索对象，并将新弹幕源 ID 存入插件缓存，停止通过 `UpdateToRepository` 写回 Emby 元数据；批量匹配按实际集号进行。
 
 - 修复内容、安装与回滚：[详细说明](doc/metadata-safety-fix.md)
 - 验证结果与边界：[verification.md](verification.md)
+- 合并依赖打包：`pwsh ./scripts/package.ps1`（请安装 artifacts 中的 DLL）
 - 回归测试：`dotnet run --project tests/RegressionTests.csproj -c Release`
 
-Release 编译通过，12 项回归检查通过。Emby 4.10.0.40 上的实际加载与在线下载仍需安装后单集验收；本修复不自动修复已有错误 NFO，也不保证第三方节目集目录完全准确。公开源码构建不含弹弹play私有密钥，需要自行配置 `DANDAN_API_ID` / `DANDAN_API_SECRET`。
+Release 编译通过，12 项回归检查通过。已在群晖 Docker / Emby 4.10.0.40 验证加载、中文搜索与腾讯单集后台下载成功；本修复不自动修复已有错误 NFO，也不保证第三方节目集目录完全准确。公开源码构建不含弹弹play私有密钥，需要自行配置 `DANDAN_API_ID` / `DANDAN_API_SECRET`。
 
 ## 上游项目说明与历史下载（不包含本次修复）
 

@@ -3,3 +3,5 @@ Emby.Plugin.Danmu/obj/
 .idea/
 tests/bin/
 tests/obj/
+.tools/
+artifacts/
